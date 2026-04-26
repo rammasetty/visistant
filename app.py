@@ -12,7 +12,6 @@ import re
 import io
 import base64
 import traceback
-import time
 import google.generativeai as genai
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -54,9 +53,6 @@ hr{border-color:#2a3a5c}
 
 # Model fallback order: try each until one works
 MODEL_PRIORITY = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"]
-
-MAX_RETRIES = 3
-RETRY_WAIT_SECONDS = 35  # Gemini typically asks to retry after ~30s
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -127,33 +123,28 @@ def is_quota_error(e):
 
 def call_gemini_with_retry(api_key, prompt, temperature=0.1):
     """
-    Try each model in MODEL_PRIORITY order.
-    For each model, retry up to MAX_RETRIES times on quota errors.
+    Try each model in MODEL_PRIORITY order. Fail fast on quota — no sleeping
+    (sleeping blocks the Streamlit UI and causes infinite loading).
     """
     last_error = None
 
     for model_name in MODEL_PRIORITY:
-        for attempt in range(MAX_RETRIES):
-            try:
-                model = get_model(api_key, model_name, temperature=temperature)
-                resp = model.generate_content(prompt)
-                return resp.text  # success
-            except Exception as e:
-                last_error = e
-                if is_quota_error(e):
-                    if attempt < MAX_RETRIES - 1:
-                        wait = RETRY_WAIT_SECONDS * (attempt + 1)
-                        st.toast(f"⏳ Rate limit on {model_name}. Retrying in {wait}s... ({attempt+1}/{MAX_RETRIES})")
-                        time.sleep(wait)
-                    else:
-                        st.toast(f"⚠️ {model_name} quota exhausted, trying next model...")
-                        break  # try next model
-                else:
-                    raise  # non-quota error, raise immediately
+        try:
+            model = get_model(api_key, model_name, temperature=temperature)
+            resp = model.generate_content(prompt)
+            return resp.text  # success
+        except Exception as e:
+            last_error = e
+            if is_quota_error(e):
+                continue  # try next model immediately
+            else:
+                raise  # non-quota error, raise immediately
 
     raise Exception(
-        f"All Gemini models hit quota limits. Please wait a minute and try again, "
-        f"or enable billing at https://ai.google.dev/\n\nLast error: {last_error}"
+        "All Gemini models are quota-limited on the free tier. "
+        "Please wait 1-2 minutes and try again, use a different API key, "
+        "or enable billing at https://ai.google.dev/ (still free within limits). "
+        f"Last error: {last_error}"
     )
 
 
@@ -162,28 +153,20 @@ def call_gemini(api_key, prompt):
 
 
 def call_gemini_insights(api_key, prompt_or_parts, temperature=0.3):
-    """Separate retry wrapper for insights calls (supports multimodal)."""
+    """Retry wrapper for insights calls (supports multimodal). Fails fast, no sleeping."""
     last_error = None
 
     for model_name in MODEL_PRIORITY:
-        for attempt in range(MAX_RETRIES):
-            try:
-                model = get_model(api_key, model_name, temperature=temperature)
-                if isinstance(prompt_or_parts, list):
-                    resp = model.generate_content(prompt_or_parts)
-                else:
-                    resp = model.generate_content(prompt_or_parts)
-                return resp.text
-            except Exception as e:
-                last_error = e
-                if is_quota_error(e):
-                    if attempt < MAX_RETRIES - 1:
-                        time.sleep(RETRY_WAIT_SECONDS * (attempt + 1))
-                        break
-                    else:
-                        break
-                else:
-                    raise
+        try:
+            model = get_model(api_key, model_name, temperature=temperature)
+            resp = model.generate_content(prompt_or_parts)
+            return resp.text
+        except Exception as e:
+            last_error = e
+            if is_quota_error(e):
+                continue  # try next model
+            else:
+                raise
 
     return f"(Insights unavailable due to quota limits: {last_error})"
 
