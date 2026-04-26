@@ -53,7 +53,8 @@ hr{border-color:#2a3a5c}
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Model fallback order: try each until one works
-MODEL_PRIORITY = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+MODEL_PRIORITY = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"]
+
 MAX_RETRIES = 3
 RETRY_WAIT_SECONDS = 35  # Gemini typically asks to retry after ~30s
 
