@@ -52,8 +52,7 @@ hr{border-color:#2a3a5c}
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Model fallback order: try each until one works
-MODEL_PRIORITY = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"]
-
+MODEL_PRIORITY = ["gemini-2.0-flash", "gemini-2.0-flash-lite"]
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
